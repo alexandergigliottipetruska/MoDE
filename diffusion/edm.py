@@ -60,7 +60,7 @@ def edm_loss(model, A, sigma, s, g, l, p):
     y_target = (A - c_skip.reshape(B, 1, 1) * noisy_actions) / c_out.reshape(B, 1, 1)
 
     # Get model output
-    output = model(x_in, sigma, s, g, l, p)
+    output = model(x_in, sigma, s, g, l)
 
     # Compute Mean Squared Loss (MSE)
     MSE_loss = (output - y_target).square().mean()

@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 from diffusion.edm import get_scalings
 
-def reverse_diffusion_sampling(model, B, s, g, l, H=10, D=7, noise_min=0.001, noise_max=2.0, sampling_steps=10, sigmas=None):
+def reverse_diffusion_sampling(model, B, s, g, l, H=10, D=7, noise_min=0.001, noise_max=80.0, sampling_steps=10, sigmas=None):
     """
     Initial sample x0: [B, H, D]
     s: static images [B, 768]

@@ -160,7 +160,7 @@ class SparseExpertLayer(nn.Module):
         return z.reshape(B, N, D)
 
 class ActionTransformer(nn.Module):
-    def __init__(self, fl=512, fv=768, num_heads=8, action_dim=7, horizon=10, hidden_dim=1024, num_blocks=12, causal=True, proprio_dim=15, top_k = 2, num_experts = 4, dropout=0.1):
+    def __init__(self, fl=512, fv=2048, num_heads=8, action_dim=7, horizon=10, hidden_dim=1024, num_blocks=12, causal=True, proprio_dim=15, top_k = 2, num_experts = 4, dropout=0.1):
         super().__init__()
         self.num_heads = num_heads
         self.hidden_dim = hidden_dim
@@ -188,7 +188,7 @@ class ActionTransformer(nn.Module):
         )
 
         # Projections for observation 
-        self.s_proj = nn.Linear(self.hidden_dim * 2, self.hidden_dim, bias=False)
+        self.s_proj = nn.Linear(self.fv * 2, self.hidden_dim, bias=False)
         self.l_proj = nn.Linear(self.fl, self.hidden_dim, bias=False)
 
     def forward(self, x, noise_level, s, g, l):
@@ -203,11 +203,6 @@ class ActionTransformer(nn.Module):
             l = l * m
 
         # Projections for Observation Conditioning
-        # Note that static and gripper camera embeddings come from the Vision Encoder, and language embeddings come
-        # from the Language Encoder.
-        # Proprioception is [B, 15], language embedding is [B, Fl], Gripper-camera embedding is [B, Fv]
-        # # and Static-camera embedding is [B, Fv]
-        # all are dim [B, 128] ==> [B, 1, 128]
         s_embed = self.s_proj(s).unsqueeze(1) + self.position_embeddings[:, 1:2, :]
         g_embed = self.s_proj(g).unsqueeze(1) + self.position_embeddings[:, 1:2, :]
         l_embed = self.l_proj(l).unsqueeze(1) + self.position_embeddings[:, 0:1, :]

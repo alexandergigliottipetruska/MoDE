@@ -21,7 +21,7 @@ class policy(nn.Module):
         instruction: str
         """
         s, g, l = self.obs_encoder(rgb_static, rgb_gripper, language_instruction)
-        clean_action_chunk = reverse_diffusion_sampling(self.diffusion_transformer, self.B, s, g, l, H=self.H, D=self.D, sampling_steps=20)
+        clean_action_chunk = reverse_diffusion_sampling(self.diffusion_transformer, self.B, s, g, l, H=self.H, D=self.D, sampling_steps=10)
 
         assert clean_action_chunk.shape == (self.B, self.H, self.D)
 
