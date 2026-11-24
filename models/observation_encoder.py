@@ -102,7 +102,7 @@ class RandomShiftsAug(nn.Module):
         delta_y_norm = 2 * delta_y / (H + 2 * self.p)
 
         norm_offsets = torch.stack([delta_x_norm, delta_y_norm], dim=-1)
-        print(norm_offsets.shape)
+
         assert norm_offsets.shape == (B, 2)
 
         shifted_grid = sampling_grid.expand(B, -1, -1, -1) + norm_offsets[:, None, None, :]
@@ -169,13 +169,14 @@ class ObservationEncoder(nn.Module):
         resized_rgb = resized_rgb.to(torch.float32)
         resized_gripper = resized_gripper.to(torch.float32)
 
-        # Random Shifts Augment (Training time Spatial Augmentation)
-        rgb_shifted = self.rgb_shift(resized_rgb)
-        gripper_shifted = self.gripper_shift(resized_gripper)
+        if self.training:
+            # Random Shifts Augment (Training time Spatial Augmentation)
+            resized_rgb = self.rgb_shift(resized_rgb)
+            resized_gripper = self.gripper_shift(resized_gripper)
 
         # Scale images to values between [0, 1]
-        rgb_scaled = (rgb_shifted / 255.0)
-        gripper_scaled = (gripper_shifted / 255.0)
+        rgb_scaled = (resized_rgb / 255.0)
+        gripper_scaled = (resized_gripper / 255.0)
 
         # Normalize using CLIP statistics
         rgb_normalized = self.transforms(rgb_scaled)

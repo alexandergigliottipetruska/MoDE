@@ -40,7 +40,7 @@ with CalvinSimClient.launch(renderer="hw_noshadow") as sim:
 
     for t in range(300):
         # action chunk is [1, 10, 7]
-        action_chunk = action_policy(rgb_static, rgb_gripper, instruction, robot_obs)
+        action_chunk = action_policy(rgb_static, rgb_gripper, instruction)
         a = receding_horizon_control(action_chunk)
 
         # Execute action in simulation and get new observation.
