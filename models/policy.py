@@ -13,7 +13,7 @@ class policy(nn.Module):
         self.D = action_dims
         self.B = 1
 
-    def forward(self, rgb_static, rgb_gripper, language_instruction, robot_obs):
+    def forward(self, rgb_static, rgb_gripper, language_instruction):
         """
         rgb_static: [1, 3, 200, 200]
         rgb_gripper: [1, 3, 84, 84]
@@ -21,7 +21,7 @@ class policy(nn.Module):
         instruction: str
         """
         s, g, l = self.obs_encoder(rgb_static, rgb_gripper, language_instruction)
-        clean_action_chunk = reverse_diffusion_sampling(self.diffusion_transformer, self.B, s, g, l, robot_obs, H=self.H, D=self.D, sampling_steps=20)
+        clean_action_chunk = reverse_diffusion_sampling(self.diffusion_transformer, self.B, s, g, l, H=self.H, D=self.D, sampling_steps=20)
 
         assert clean_action_chunk.shape == (self.B, self.H, self.D)
 

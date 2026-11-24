@@ -1,4 +1,4 @@
-
+import sys; sys.path.insert(0, "/Users/Alexander/Documents/calvin_sim/bridge")
 from calvin_client import CalvinSimClient, InvalidCommandError, SimulatorError
 from models.policy import policy
 import torch

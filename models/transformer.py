@@ -172,32 +172,35 @@ class ActionTransformer(nn.Module):
         self.fv = fv # vision embedding size for gripper and static images
         self.p = proprio_dim
         self.top_k = top_k
-        self._num_experts = num_experts
+        self.num_experts = num_experts
         self.dropout = dropout
 
 
         self.Transformer = Transformer(self.num_heads, self.hidden_dim, self.num_blocks, self.causal, self.top_k, self.num_experts, self.dropout)
-        self.action_embedding = nn.Linear(self.action_dim, self.hidden_dim)
+        self.action_embedding = nn.Linear(self.action_dim, self.hidden_dim, bias=False)
         self.action_head = nn.Linear(self.hidden_dim, self.action_dim)
-        self.position_embeddings = torch.empty((1, self.horizon, self.hidden_dim))
-        self.position_embeddings = nn.Parameter(self.position_embeddings.normal_(mean=0.0, std=0.02))
+        self.position_embeddings = nn.Parameter(torch.zeros((1, self.horizon + 1, self.hidden_dim)))
 
         # Condition on noise so the network knows how much denoising is required per noise level.
         self.noise_proj = nn.Sequential(
-            nn.Linear(1, self.hidden_dim),
-            nn.Linear(self.hidden_dim, self.hidden_dim)
+            nn.Linear(1, self.hidden_dim, bias=True),
+            nn.Linear(self.hidden_dim, self.hidden_dim, bias=False)
         )
 
         # Projections for observation 
-        self.s_proj = nn.Linear(self.fv, self.hidden_dim)
-        self.g_proj = nn.Linear(self.fv, self.hidden_dim)
-        self.l_proj = nn.Linear(self.fl, self.hidden_dim)
-        self.p_proj = nn.Linear(self.p, self.hidden_dim)
+        self.s_proj = nn.Linear(self.hidden_dim * 2, self.hidden_dim, bias=False)
+        self.l_proj = nn.Linear(self.fl, self.hidden_dim, bias=False)
 
-    def forward(self, x, noise_level, s, g, l, p):
+    def forward(self, x, noise_level, s, g, l):
         # Linearly project actions and add positional embeddings to convert into Transformer tokens
         x = self.action_embedding(x)
-        action_embed = x + self.position_embeddings
+        action_embed = x + self.position_embeddings[:, 1:11, :]
+
+        # Bernoulli mask (training only)
+        if self.training:
+            m = torch.empty_like(l)
+            m.bernoulli_(p=0.9)
+            l = l * m
 
         # Projections for Observation Conditioning
         # Note that static and gripper camera embeddings come from the Vision Encoder, and language embeddings come
@@ -205,26 +208,23 @@ class ActionTransformer(nn.Module):
         # Proprioception is [B, 15], language embedding is [B, Fl], Gripper-camera embedding is [B, Fv]
         # # and Static-camera embedding is [B, Fv]
         # all are dim [B, 128] ==> [B, 1, 128]
-        s_embed = self.s_proj(s).unsqueeze(1)
-        g_embed = self.g_proj(g).unsqueeze(1)
-        l_embed = self.l_proj(l).unsqueeze(1)
-        p_embed = self.p_proj(p).unsqueeze(1)
-
-        obvs_tokens = torch.cat([s_embed, g_embed, l_embed, p_embed], dim=1)
+        s_embed = self.s_proj(s).unsqueeze(1) + self.position_embeddings[:, 1:2, :]
+        g_embed = self.s_proj(g).unsqueeze(1) + self.position_embeddings[:, 1:2, :]
+        l_embed = self.l_proj(l).unsqueeze(1) + self.position_embeddings[:, 0:1, :]
 
         # Noise conditioning
         noise_level_transformed = (torch.log(noise_level) / 4.0).unsqueeze(1) # shape is [B, 1]
         noise_embed = self.noise_proj(noise_level_transformed).unsqueeze(dim=1) # shape is [B, 1, 128]
 
-        # Concatenate noise token with action tokens along sequence length.
+        # Concatenate noise tokekn with action and observation tokens along sequence length.
         # Prepend observation conditioning tokens to action tokens
-        input_tokens = torch.cat([noise_embed, obvs_tokens, action_embed], dim=1)
+        input_tokens = torch.cat([noise_embed, l_embed, s_embed, g_embed, action_embed], dim=1)
 
         # Pass into Transformer architecture.
         output_tokens = self.Transformer(input_tokens, noise_embed)
 
         # Action head
-        actions = self.action_head(output_tokens[:, 5:self.horizon + 5, :])
+        actions = self.action_head(output_tokens[:, 4:self.horizon + 4, :])
 
         return actions
 
@@ -246,7 +246,7 @@ class Transformer(nn.Module):
                 TransformerBlock(num_heads=self.num_heads, hidden_dim=self.hidden_dim, causal=self.causal, top_k = self.top_k, num_experts = self.num_experts, dropout = self.dropout)
             )
 
-        self.rms_norm = RMSNorm(dim=self.hidden_dim)
+        self.rms_norm = RMSNorm(dim=self.hidden_dim, eps=1e-6)
 
     def forward(self, x, noise_level):
         for TransformerBlock in self.TransformerBlocks:
